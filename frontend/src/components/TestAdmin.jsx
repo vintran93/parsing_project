@@ -3,7 +3,7 @@ import axios from "axios";
 
 // Axios defaults
 axios.defaults.baseURL = "http://localhost:8000";
-axios.defaults.withCredentials = true;           // send cookies with every request
+axios.defaults.withCredentials = true; // send cookies with every request
 
 // Helper: read a cookie (gets the CSRF token)
 function getCookie(name) {
@@ -15,7 +15,7 @@ function getCookie(name) {
 
 export default function TestAdmin() {
   const [tests, setTests] = useState([]);
-  const [file, setFile]   = useState(null);
+  const [file, setFile] = useState(null);
   const [title, setTitle] = useState("");
   const [error, setError] = useState(null);
 
