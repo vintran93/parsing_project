@@ -4,43 +4,45 @@ import WordParser from "./components/WordParser";
 import TestAdmin from "./components/TestAdmin";
 import TestEditor from "./components/TestEditor";
 
+const PlayerWrap = () => {
+  const { testId } = useParams();
+  const navigate = useNavigate();
+
+  return (
+    <WordParser
+      externalTestId={testId}
+      hideUploader={true}
+      onBack={() => navigate("/")}
+    />
+  );
+};
+
 function App() {
   const navigate = useNavigate();
 
-  // Handler to navigate to the editor page
-  const handleEdit = (testId) => {
-    navigate(`/tests/${testId}/edit`);
-  };
-
-  // Handler to go back from the editor to admin
-  const handleBack = () => {
-    navigate("/");
-  };
-
-  // Wrapper component to get testId param and pass it to TestEditor
-  function TestEditorWrapper() {
-    const { testId } = useParams();
-    return <TestEditor testId={testId} onBack={handleBack} />;
-  }
+  const handleEdit = (id) => navigate(`/tests/${id}/edit`);
+  const handleStart = (id) => navigate(`/tests/${id}/start`);
 
   return (
     <div className="App">
-      <main style={{ padding: 20, maxWidth: 600, margin: "auto" }}>
+      <main style={{ padding: 20, maxWidth: 760, margin: "auto" }}>
         <Routes>
           <Route
             path="/"
-            element={
-              <>
-                <WordParser />
-                <TestAdmin onEdit={handleEdit} />
-              </>
-            }
+            element={<TestAdmin onEdit={handleEdit} onStart={handleStart} />}
           />
           <Route path="/tests/:testId/edit" element={<TestEditorWrapper />} />
+          <Route path="/tests/:testId/start" element={<PlayerWrap />} />
         </Routes>
       </main>
     </div>
   );
 }
+
+const TestEditorWrapper = () => {
+  const { testId } = useParams();
+  const navigate = useNavigate();
+  return <TestEditor testId={testId} onBack={() => navigate("/")} />;
+};
 
 export default App;

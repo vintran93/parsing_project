@@ -1,116 +1,82 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-// Axios defaults
+/* Axios defaults */
 axios.defaults.baseURL = "http://localhost:8000";
-axios.defaults.withCredentials = true; // send cookies with every request
+axios.defaults.withCredentials = true;
 
-// Helper: read a cookie (gets the CSRF token)
+/* read csrftoken cookie */
 function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
+  const v = `; ${document.cookie}`;
+  const parts = v.split(`; ${name}=`);
   if (parts.length === 2) return parts.pop().split(";").shift();
   return null;
 }
 
-export default function TestAdmin({ onEdit }) {
+export default function TestAdmin({ onEdit, onStart }) {
   const [tests, setTests] = useState([]);
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState("");
   const [error, setError] = useState(null);
 
-  /* ─────────────── API helpers ─────────────── */
-
-  // Pull the latest CSRF cookie (GET /api/csrf/)
-  const fetchCsrfCookie = async () => {
-    try {
-      await axios.get("/api/csrf/");
-    } catch (err) {
-      console.error("CSRF cookie fetch failed →", err.response?.data || err);
-    }
-  };
-
-  // List tests
-  const fetchTests = async () => {
-    try {
-      const res = await axios.get("/api/tests/");
-      setTests(res.data);
-    } catch (err) {
-      console.error("fetchTests() error →", err.response?.data || err);
-      setError("Failed to fetch tests");
-    }
-  };
-
-  /* ─────────────── lifecycle ─────────────── */
+  /* ─── API helpers ─── */
+  const fetchCsrf = () => axios.get("/api/csrf/").catch(() => {});
+  const fetchTests = () =>
+    axios
+      .get("/api/tests/")
+      .then((res) => setTests(res.data))
+      .catch(() => setError("Failed to fetch tests"));
 
   useEffect(() => {
-    (async () => {
-      await fetchCsrfCookie();
-      await fetchTests();
-    })();
+    fetchCsrf().then(fetchTests);
   }, []);
 
-  /* ─────────────── actions ─────────────── */
-
-  // Upload a new Word test
   const handleUpload = async () => {
+    if (!file) return setError("Select a .docx file first");
     setError(null);
 
-    if (!file) {
-      setError("Please select a .docx file first");
-      return;
-    }
+    const form = new FormData();
+    form.append("doc_file", file);
+    if (title) form.append("title", title);
 
     try {
-      const form = new FormData();
-      form.append("doc_file", file);
-      if (title) form.append("title", title);
-
       await axios.post("/api/tests/", form, {
         headers: { "X-CSRFToken": getCookie("csrftoken") },
       });
-
       setFile(null);
       setTitle("");
       fetchTests();
-    } catch (err) {
-      console.error("Upload failed →", err.response?.data || err);
-      setError(
-        "Upload failed: " +
-          (typeof err.response?.data === "object"
-            ? JSON.stringify(err.response.data)
-            : err.response?.data || err.message)
-      );
+    } catch {
+      setError("Upload failed");
     }
   };
 
-  // Delete a test
   const handleDelete = async (id) => {
     setError(null);
+
+    // Confirmation prompt
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this test? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
     try {
       await axios.delete(`/api/tests/${id}/`, {
         headers: { "X-CSRFToken": getCookie("csrftoken") },
       });
       fetchTests();
-    } catch (err) {
-      console.error("Delete failed →", err.response?.data || err);
-      setError(
-        "Delete failed: " +
-          (typeof err.response?.data === "object"
-            ? JSON.stringify(err.response.data)
-            : err.response?.data || err.message)
-      );
+    } catch {
+      setError("Delete failed");
     }
   };
 
-  /* ─────────────── render ─────────────── */
-
+  /* ─── render ─── */
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6">
       <h2 className="text-2xl font-bold">Word Tests Admin</h2>
 
       {error && (
-        <div className="p-2 mb-4 text-red-700 bg-red-100 rounded">{error}</div>
+        <div className="p-2 text-red-700 bg-red-100 rounded">{error}</div>
       )}
 
       {/* uploader */}
@@ -159,19 +125,27 @@ export default function TestAdmin({ onEdit }) {
               <td className="p-2">
                 {new Date(t.uploaded_at).toLocaleDateString()}
               </td>
-              <td className="p-2 space-x-2">
-                <button
-                  onClick={() => onEdit?.(t.id)}
-                  className="text-blue-600 underline"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(t.id)}
-                  className="text-red-600"
-                >
-                  Delete
-                </button>
+              <td className="p-2">
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={() => onEdit?.(t.id)}
+                    className="text-blue-600 underline"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => onStart?.(t.id)}
+                    className="text-indigo-600 underline"
+                  >
+                    Start
+                  </button>
+                  <button
+                    onClick={() => handleDelete(t.id)}
+                    className="text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

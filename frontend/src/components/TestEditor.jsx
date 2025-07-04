@@ -95,6 +95,13 @@ const TestEditor = ({ testId, onBack }) => {
         Title:
         <input type="text" value={test.title} onChange={handleTitleChange} />
       </label>
+      <button
+        onClick={onBack}
+        className="mb-4 px-3 py-1 bg-gray-300 rounded hover:bg-gray-400"
+        style={{ marginLeft: "16px" }}
+        >
+        ← Back to Main
+    </button>
 
       <div>
         {test.parsed_json.questions.map((question, qIndex) => (
