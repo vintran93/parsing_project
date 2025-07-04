@@ -1,66 +1,142 @@
+import string
+import logging
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from docx import Document
-import string
 
+logger = logging.getLogger(__name__)
+
+# ──────────────────────────── PARSER ────────────────────────────
 class WordParseView(APIView):
+    """
+    POST /api/parse-doc/
+    multipart‑form: file=<.docx>
+
+    Response JSON:
+    {
+      "title": "Practice Test 3",
+      "questions": [
+        {
+          "question": "...?",
+          "options": ["a) ...", "b) ...", ...],
+          "explanation": "..."
+        },
+        ...
+      ]
+    }
+    """
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, format=None):
-        file_obj = request.FILES.get('file')
+        file_obj = request.FILES.get("file")
         if not file_obj:
-            return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "No file uploaded"}, status=400)
+        if not file_obj.name.endswith(".docx"):
+            return Response({"error": "Only .docx files supported"}, status=400)
 
-        if not file_obj.name.endswith('.docx'):
-            return Response({"error": "Only .docx files are supported"}, status=status.HTTP_400_BAD_REQUEST)
-
+        # Read Word document
         try:
-            document = Document(file_obj)
-        except Exception as e:
-            return Response({"error": f"Failed to read document: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+            doc = Document(file_obj)
+        except Exception as exc:
+            logger.exception("Failed to read .docx")
+            return Response({"error": str(exc)}, status=400)
 
-        paragraphs = [p.text.strip() for p in document.paragraphs if p.text.strip()]
+        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        logger.debug("Extracted %d paragraphs", len(paragraphs))
+
+        # Optional title
+        title = None
+        if paragraphs and not paragraphs[0].endswith("?"):
+            title = paragraphs.pop(0)
+            logger.debug("Detected title: %s", title)
 
         questions = []
-        current_question = None
+        current = None
+        collecting_options = False
 
         for para in paragraphs:
-            if para.endswith('?'):
-                if current_question:
-                    questions.append(current_question)
-                current_question = {
-                    "question": para,
-                    "options": [],
-                    "explanation": ""
-                }
-            else:
-                if not current_question:
-                    continue
-                if len(para) < 200 and len(para.split()) < 15:
-                    current_question["options"].append(para.strip())
+            if para.endswith("?"):  # new question
+                if current:
+                    questions.append(current)
+                current = {"question": para, "options": [], "explanation": ""}
+                collecting_options = True
+                logger.debug("New question: %s", para)
+                continue
+
+            if not current:
+                continue  # skip stray text before first question
+
+            if collecting_options:
+                if para.startswith("Explanation:"):
+                    current["explanation"] = para[len("Explanation:"):].strip()
+                    collecting_options = False
+                    logger.debug("Explanation begins: %s", current["explanation"])
                 else:
-                    if current_question["explanation"]:
-                        current_question["explanation"] += " " + para
-                    else:
-                        current_question["explanation"] = para
+                    current["options"].append(para)
+                    logger.debug("Option added: %s", para)
+            else:
+                current["explanation"] += " " + para
+                logger.debug("Explanation cont.: %s", para)
 
-        if current_question:
-            questions.append(current_question)
+        if current:
+            questions.append(current)
 
-        output_lines = []
-        for i, q in enumerate(questions, start=1):
-            output_lines.append(f"{i}. {q['question']}")
-            for idx, option in enumerate(q["options"]):
-                letter = string.ascii_lowercase[idx] if idx < 26 else '?'
-                label = f"{letter})"
-                label = label.ljust(4)  # pad to 4 characters total
-                output_lines.append(f"   {label}{option}")
-            if q["explanation"]:
-                output_lines.append(f"Explanation: {q['explanation']}")
-            output_lines.append("")  # blank line
+        # Add a)/b)/c) labels
+        for q in questions:
+            q["options"] = [
+                f"{string.ascii_lowercase[i]}) {opt}" for i, opt in enumerate(q["options"])
+            ]
 
-        plain_text_output = "\n".join(output_lines)
+        return Response({"title": title, "questions": questions}, status=200)
 
-        return Response({"html": plain_text_output, "questions": None}, status=status.HTTP_200_OK)
+
+# ──────────────────────────── GRADER ────────────────────────────
+class GradeTestView(APIView):
+    """
+    POST /api/grade-test/
+    Body JSON: {"answers":{"0":"a","1":"b", ...}}
+
+    Responds with score, total, and per‑question results.
+    """
+
+    # Replace with your real answer key (index ➜ letter)
+    CORRECT_ANSWERS = {
+        0: "c",
+        1: "b",
+        2: "a",
+        3: "b",
+        4: "d",
+        5: "d",
+        6: "a",
+        7: "a",
+        8: "c",
+        9: "b",
+    }
+
+    def post(self, request, format=None):
+        answers = request.data.get("answers")
+        if not isinstance(answers, dict):
+            return Response({"error": "answers must be an object"}, status=400)
+
+        total = len(self.CORRECT_ANSWERS)
+        score = 0
+        results = []
+
+        for idx, correct in self.CORRECT_ANSWERS.items():
+            given = answers.get(str(idx), "").lower()
+            ok = given == correct.lower()
+            if ok:
+                score += 1
+            results.append({
+                "question_index": idx,
+                "correct_answer": correct,
+                "user_answer": given or None,
+                "is_correct": ok,
+            })
+
+        return Response(
+            {"score": score, "total": total, "results": results},
+            status=200,
+        )
