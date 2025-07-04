@@ -1,142 +1,59 @@
-import string
-import logging
-from rest_framework.views import APIView
+from rest_framework import viewsets, status
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-from docx import Document
+from django.http import JsonResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.utils.decorators import method_decorator
 
-logger = logging.getLogger(__name__)
+from .models import WordTest
+from .serializers import WordTestSerializer
+from .parse_utils import parse_docx_to_json, parse_and_attach  # import both
 
-# ──────────────────────────── PARSER ────────────────────────────
+# ViewSet for WordTest with auto parse on upload
+class WordTestViewSet(viewsets.ModelViewSet):
+    queryset = WordTest.objects.all()
+    serializer_class = WordTestSerializer
+    parser_classes = [MultiPartParser, FormParser]
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        try:
+            # Parse the uploaded doc and attach parsed JSON
+            parse_and_attach(instance, instance.doc_file)
+            instance.save()
+        except Exception as e:
+            instance.delete()
+            raise e
+
+# APIView to parse a docx file directly (separate endpoint)
 class WordParseView(APIView):
-    """
-    POST /api/parse-doc/
-    multipart‑form: file=<.docx>
-
-    Response JSON:
-    {
-      "title": "Practice Test 3",
-      "questions": [
-        {
-          "question": "...?",
-          "options": ["a) ...", "b) ...", ...],
-          "explanation": "..."
-        },
-        ...
-      ]
-    }
-    """
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, format=None):
-        file_obj = request.FILES.get("file")
+        file_obj = request.FILES.get('file')  # use 'doc_file' key here
         if not file_obj:
-            return Response({"error": "No file uploaded"}, status=400)
-        if not file_obj.name.endswith(".docx"):
-            return Response({"error": "Only .docx files supported"}, status=400)
-
-        # Read Word document
+            return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            doc = Document(file_obj)
-        except Exception as exc:
-            logger.exception("Failed to read .docx")
-            return Response({"error": str(exc)}, status=400)
+            file_bytes = file_obj.read()
+            parsed = parse_docx_to_json(file_bytes)
+            return Response(parsed)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-        logger.debug("Extracted %d paragraphs", len(paragraphs))
-
-        # Optional title
-        title = None
-        if paragraphs and not paragraphs[0].endswith("?"):
-            title = paragraphs.pop(0)
-            logger.debug("Detected title: %s", title)
-
-        questions = []
-        current = None
-        collecting_options = False
-
-        for para in paragraphs:
-            if para.endswith("?"):  # new question
-                if current:
-                    questions.append(current)
-                current = {"question": para, "options": [], "explanation": ""}
-                collecting_options = True
-                logger.debug("New question: %s", para)
-                continue
-
-            if not current:
-                continue  # skip stray text before first question
-
-            if collecting_options:
-                if para.startswith("Explanation:"):
-                    current["explanation"] = para[len("Explanation:"):].strip()
-                    collecting_options = False
-                    logger.debug("Explanation begins: %s", current["explanation"])
-                else:
-                    current["options"].append(para)
-                    logger.debug("Option added: %s", para)
-            else:
-                current["explanation"] += " " + para
-                logger.debug("Explanation cont.: %s", para)
-
-        if current:
-            questions.append(current)
-
-        # Add a)/b)/c) labels
-        for q in questions:
-            q["options"] = [
-                f"{string.ascii_lowercase[i]}) {opt}" for i, opt in enumerate(q["options"])
-            ]
-
-        return Response({"title": title, "questions": questions}, status=200)
-
-
-# ──────────────────────────── GRADER ────────────────────────────
+# APIView to grade a test submission (stub example)
 class GradeTestView(APIView):
-    """
-    POST /api/grade-test/
-    Body JSON: {"answers":{"0":"a","1":"b", ...}}
-
-    Responds with score, total, and per‑question results.
-    """
-
-    # Replace with your real answer key (index ➜ letter)
-    CORRECT_ANSWERS = {
-        0: "c",
-        1: "b",
-        2: "a",
-        3: "b",
-        4: "d",
-        5: "d",
-        6: "a",
-        7: "a",
-        8: "c",
-        9: "b",
-    }
-
     def post(self, request, format=None):
-        answers = request.data.get("answers")
-        if not isinstance(answers, dict):
-            return Response({"error": "answers must be an object"}, status=400)
+        data = request.data
+        return Response({"message": "Grading not implemented yet", "data": data})
 
-        total = len(self.CORRECT_ANSWERS)
-        score = 0
-        results = []
+# CSRF view (function-based)
+@ensure_csrf_cookie
+def csrf(request):
+    return JsonResponse({"detail": "CSRF cookie set"})
 
-        for idx, correct in self.CORRECT_ANSWERS.items():
-            given = answers.get(str(idx), "").lower()
-            ok = given == correct.lower()
-            if ok:
-                score += 1
-            results.append({
-                "question_index": idx,
-                "correct_answer": correct,
-                "user_answer": given or None,
-                "is_correct": ok,
-            })
-
-        return Response(
-            {"score": score, "total": total, "results": results},
-            status=200,
-        )
+# Optional: CSRF class-based view alternative
+@method_decorator(ensure_csrf_cookie, name='dispatch')
+class CsrfView(APIView):
+    def get(self, request, format=None):
+        return JsonResponse({"detail": "CSRF cookie set"})

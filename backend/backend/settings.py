@@ -143,3 +143,12 @@ LOGGING = {
         'level': 'DEBUG',
     },
 }
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
+        # add token auth if you want later
+    ),
+}
+
+CORS_ALLOW_CREDENTIALS = True

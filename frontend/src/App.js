@@ -1,6 +1,7 @@
 import logo from "./logo.svg";
 import "./App.css";
 import WordParser from "./components/WordParser";
+import TestAdmin from './components/TestAdmin'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
 
       <main style={{ padding: 20, maxWidth: 600, margin: "auto" }}>
         <WordParser />
+        <TestAdmin />
       </main>
     </div>
   );
