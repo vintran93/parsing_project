@@ -63,6 +63,20 @@ const TestEditor = ({ testId, onBack }) => {
     });
   };
 
+  // NEW: Add a new blank question to the questions array
+  const addQuestion = () => {
+    setTest((prev) => {
+      const updatedQuestions = [...(prev.parsed_json.questions || [])];
+      updatedQuestions.push({
+        question: '',
+        explanation: '',
+        options: [''],
+        correct_answer: '',
+      });
+      return { ...prev, parsed_json: { ...prev.parsed_json, questions: updatedQuestions } };
+    });
+  };
+
   const saveTest = async () => {
     setError(null);
     try {
@@ -99,9 +113,9 @@ const TestEditor = ({ testId, onBack }) => {
         onClick={onBack}
         className="mb-4 px-3 py-1 bg-gray-300 rounded hover:bg-gray-400"
         style={{ marginLeft: "16px" }}
-        >
+      >
         ← Back to Main
-    </button>
+      </button>
 
       <div>
         {test.parsed_json.questions.map((question, qIndex) => (
@@ -145,7 +159,19 @@ const TestEditor = ({ testId, onBack }) => {
         ))}
       </div>
 
-      <button type="button" onClick={saveTest}>
+      {/* New Add Question Button */}
+      <button
+        type="button"
+        onClick={addQuestion}
+        style={{ marginTop: '12px', marginBottom: '20px', padding: '6px 12px', backgroundColor: '#22c55e', color: 'white', borderRadius: '4px' }}
+      >
+        + Add Question
+      </button>
+
+      <button type="button" 
+        onClick={saveTest}
+        style={{ marginTop: '12px', marginBottom: '20px', padding: '6px 12px', backgroundColor: '#22c55e', color: 'white', borderRadius: '4px' }}
+      >
         Save Test
       </button>
     </div>
