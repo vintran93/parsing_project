@@ -13,7 +13,7 @@ function getCookie(name) {
   return null;
 }
 
-export default function TestAdmin() {
+export default function TestAdmin({ onEdit }) {
   const [tests, setTests] = useState([]);
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState("");
@@ -160,14 +160,12 @@ export default function TestAdmin() {
                 {new Date(t.uploaded_at).toLocaleDateString()}
               </td>
               <td className="p-2 space-x-2">
-                <a
-                  href={t.doc_file}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => onEdit?.(t.id)}
                   className="text-blue-600 underline"
                 >
-                  Download
-                </a>
+                  Edit
+                </button>
                 <button
                   onClick={() => handleDelete(t.id)}
                   className="text-red-600"

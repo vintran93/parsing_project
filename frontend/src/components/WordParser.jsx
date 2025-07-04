@@ -96,27 +96,43 @@ function WordParser() {
             <div key={i} className="p-4 border rounded bg-gray-50">
               <p className="font-semibold">{i + 1}. {q.question}</p>
 
-              <div className="ml-6">
-                {q.options.map((opt, idx) => {
-                  const letter = String.fromCharCode(97 + idx);
-                  const optionText = opt.slice(3).trim();
-                  return (
-                    <label key={idx} className="flex items-start mb-2 space-x-2">
-                      <input
-                        type="radio"
-                        name={`q${i}`}
-                        value={letter}
-                        checked={answers[i] === letter}
-                        onChange={() => handleAnswerChange(i, letter)}
-                        disabled={!!results}
-                      />
-                      <span><strong>{letter})</strong> {optionText}</span>
-                    </label>
+              <div className="mt-2">
+                {(() => {
+                  // Flatten all split options into one array
+                  const allOptions = q.options.flatMap(opt =>
+                    opt.split(/(?=[a-d]\))/i).map(s => s.trim()).filter(Boolean)
                   );
-                })}
+
+                  return allOptions.map((optText, idx) => {
+                    // optText looks like: "a) To optimize routing ..."
+                    const match = optText.match(/^([a-d])\)\s*(.+)$/i);
+                    if (!match) return null;
+                    const letter = match[1].toLowerCase();
+                    const text = match[2];
+
+                    return (
+                      <label
+                        key={idx}
+                        className="flex items-center space-x-2 mb-2 cursor-pointer"
+                        style={{ display: 'flex', alignItems: 'center' }}
+                      >
+                        <input
+                          type="radio"
+                          name={`q${i}`}
+                          value={letter}
+                          checked={answers[i] === letter}
+                          onChange={() => handleAnswerChange(i, letter)}
+                          disabled={!!results}
+                          style={{ flexShrink: 0 }}
+                        />
+                        <span>{letter}) {text}</span>
+                      </label>
+                    );
+                  });
+                })()}
               </div>
 
-              {/* ✅ Show correct answer before grading */}
+              {/* Show correct answer before grading */}
               {q.correct_answer && (
                 <p className="mt-1 text-sm text-green-700">
                   Correct answer: {q.correct_answer}
@@ -125,9 +141,11 @@ function WordParser() {
 
               {/* Feedback after grading */}
               {results && (
-                <p className={`mt-2 font-medium ${
-                  results.results[i].is_correct ? "text-green-600" : "text-red-600"
-                }`}>
+                <p
+                  className={`mt-2 font-medium ${
+                    results.results[i].is_correct ? "text-green-600" : "text-red-600"
+                  }`}
+                >
                   {results.results[i].is_correct
                     ? "Correct"
                     : `Wrong, correct answer: ${results.results[i].correct_answer}`}

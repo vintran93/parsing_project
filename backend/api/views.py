@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.http import JsonResponse
@@ -15,7 +15,7 @@ from .parse_utils import parse_docx_to_json, parse_and_attach  # import both
 class WordTestViewSet(viewsets.ModelViewSet):
     queryset = WordTest.objects.all()
     serializer_class = WordTestSerializer
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def perform_create(self, serializer):
         title = serializer.validated_data.get("title")
